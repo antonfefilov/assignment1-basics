@@ -84,6 +84,7 @@ def process_chunk(args):
             # Split story into words and count occurrences
             words = story.split()
             for word in words:
-                pre_token_counts[word] = pre_token_counts.get(word, 0) + 1
+                word_bytes = word.encode("utf-8")
+                pre_token_counts[word_bytes] = pre_token_counts.get(word_bytes, 0) + 1
 
         return pre_token_counts
