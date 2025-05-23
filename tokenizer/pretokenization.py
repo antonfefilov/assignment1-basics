@@ -63,7 +63,18 @@ def pretokenize(file_path: str, num_processes: int) -> list[str]:
     return frequency_table
 
 
-def process_chunk(args):
+def process_chunk(args: tuple[int, int, str]) -> dict[tuple[bytes, ...], int]:
+    """
+    Processes a chunk of a file to count word occurrences.
+
+    Args:
+        args (tuple[int, int, str]): A tuple containing the start and end byte positions
+        of the chunk and the file path.
+
+    Returns:
+        dict[tuple[bytes, ...], int]: A dictionary where the keys are tuples of bytes
+        representing words, and the values are their respective counts.
+    """
     start, end, file_path = args
     with open(file_path, "rb") as f:
         f.seek(start)
