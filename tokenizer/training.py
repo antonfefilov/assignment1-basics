@@ -13,19 +13,18 @@ def train(
 
     merges = []
 
-    try:
-        while len(vocabulary) < vocab_size:
-            pf = pairs_freq(frequency_table)
-            best_freq = max(pf.values())
-            # candidates-leaders
-            best = max([p for p, f in pf.items() if f == best_freq])  # lexicographic max
+    while len(vocabulary) < vocab_size:
+        pf = pairs_freq(frequency_table)
+        if not pf:  # Check if pf is empty
+            break
+        best_freq = max(pf.values())
+        # candidates-leaders
+        best = max([p for p, f in pf.items() if f == best_freq])  # lexicographic max
 
-            merges.append(best)
-            vocabulary[len(vocabulary)] = bytes(best[0] + best[1])
+        merges.append(best)
+        vocabulary[len(vocabulary)] = bytes(best[0] + best[1])
 
-            frequency_table = merge_pair(frequency_table, best)
-    except ValueError:
-        pass
+        frequency_table = merge_pair(frequency_table, best)
 
     return vocabulary, merges
 
