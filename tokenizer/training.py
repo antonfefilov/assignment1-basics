@@ -1,4 +1,5 @@
 from collections import Counter
+from tqdm import tqdm
 from .pretokenization import pretokenize
 
 
@@ -13,6 +14,13 @@ def train(
 
     merges = []
 
+    # Calculate the number of merges needed
+    initial_vocab_size = len(vocabulary)
+    num_merges_needed = vocab_size - initial_vocab_size
+    
+    # Create progress bar
+    pbar = tqdm(total=num_merges_needed, desc="Training BPE", unit="merges")
+
     while len(vocabulary) < vocab_size:
         pf = pairs_freq(frequency_table)
         if not pf:  # Check if pf is empty
@@ -25,13 +33,19 @@ def train(
         vocabulary[len(vocabulary)] = bytes(best[0] + best[1])
 
         frequency_table = merge_pair(frequency_table, best)
+        
+        # Update progress bar
+        pbar.update(1)
+    
+    # Close progress bar
+    pbar.close()
 
     return vocabulary, merges
 
 
-def pairs_freq(words: dict[tuple[bytes], int]) -> dict[tuple[bytes], int]:
+def pairs_freq(words: dict[tuple[bytes, ...], int]) -> dict[tuple[bytes, bytes], int]:
     """Frequencies of pairs in {tuple(chars): freq}"""
-    freq = Counter()
+    freq: Counter = Counter()
     for word, f in words.items():
         for i in range(len(word) - 1):
             freq[(word[i], word[i + 1])] += f
