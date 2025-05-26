@@ -29,23 +29,16 @@ def train(
             pair2pos[pair].add((word_id, i))
             freq_pairs[pair] += frequency_table[tuple(word)]
 
-    print("pair2pos initial", pair2pos)
-    print("freq_pairs initial", freq_pairs)
-    print("words initial", words)
-    input("Press Enter to continue...")
     merges = []
 
     # Calculate the number of merges needed
     initial_vocab_size = len(vocabulary)
     num_merges_needed = vocab_size - initial_vocab_size
-    
+
     # Create progress bar
     pbar = tqdm(total=num_merges_needed, desc="Training BPE", unit="merges")
 
     while len(vocabulary) < vocab_size:
-        print("--------------------------------")
-        print("freq_pairs before merge", freq_pairs)
-
         if not freq_pairs:
             break
 
@@ -53,22 +46,14 @@ def train(
         best_pairs = [p for p, f in freq_pairs.items() if f == max_freq]
         best_pair = max(best_pairs)
 
-        print("max_freq", max_freq)
-        print("BEST_PAIRS", best_pairs)
-        print("BEST_PAIR", best_pair)
-        print("pair2pos before merge", pair2pos)
-        print("frequency_table before merge", frequency_table)
-
         bpe_merge_inplace(best_pair[0], best_pair[1], words, pair2pos, freq_pairs, frequency_table)
 
         merges.append(best_pair)
         vocabulary[len(vocabulary)] = bytes(best_pair[0] + best_pair[1])
 
-        print("MERGES", merges)
-
         # Update progress bar
         pbar.update(1)
-    
+
     # Close progress bar
     pbar.close()
 
@@ -78,8 +63,6 @@ def train(
 # Single merge step function
 def bpe_merge_inplace(a, b, word_list, pair2pos, freq_pairs, frequency_table):
     ab = a + b
-
-    print("ab", ab)
 
     # Get all positions for this pair
     positions = list(pair2pos[(a, b)])
@@ -92,27 +75,20 @@ def bpe_merge_inplace(a, b, word_list, pair2pos, freq_pairs, frequency_table):
     for word_id in word_positions:
         word_positions[word_id].sort(reverse=True)
 
-    print("word_positions", dict(word_positions))
-
     # Process each word separately
     for word_id, positions_in_word in word_positions.items():
         tokens = word_list[word_id]
         original_tokens = tuple(tokens)
         word_frequency = frequency_table[original_tokens]
 
-        print(f"Processing word_id {word_id}, tokens: {tokens}")
-
         # Process positions in reverse order within this word
         for pos in positions_in_word:
             # Verify the pair still exists at this position
             if pos >= len(tokens) - 1 or tokens[pos] != a or tokens[pos + 1] != b:
-                print(f"Skipping invalid position {pos} in word {word_id}")
                 continue
 
             prev_token = tokens[pos - 1] if pos > 0 else None
             next_token = tokens[pos + 2] if pos < len(tokens) - 2 else None
-
-            print(f"Merging at pos {pos}: prev={prev_token}, current=({a},{b}), next={next_token}")
 
             # Remove old pairs from tracking structures
             if prev_token is not None:
@@ -132,7 +108,7 @@ def bpe_merge_inplace(a, b, word_list, pair2pos, freq_pairs, frequency_table):
                     del freq_pairs[(b, next_token)]
 
             # Perform the merge
-            tokens[pos:pos + 2] = [ab]
+            tokens[pos : pos + 2] = [ab]
 
             # Add new pairs
             if prev_token is not None:
@@ -142,8 +118,6 @@ def bpe_merge_inplace(a, b, word_list, pair2pos, freq_pairs, frequency_table):
             if next_token is not None:
                 pair2pos[(ab, next_token)].add((word_id, pos))
                 freq_pairs[(ab, next_token)] += word_frequency
-
-            print(f"After merge: {tokens}")
 
         # Update frequency table
         del frequency_table[original_tokens]
@@ -155,5 +129,3 @@ def bpe_merge_inplace(a, b, word_list, pair2pos, freq_pairs, frequency_table):
         del pair2pos[(a, b)]
     if (a, b) in freq_pairs:
         del freq_pairs[(a, b)]
-
-    print("--------------------------------")
