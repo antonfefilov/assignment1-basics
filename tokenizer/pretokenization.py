@@ -59,8 +59,7 @@ def pretokenize(file_path: str, num_processes: int) -> dict[tuple[bytes, ...], i
         with Pool(processes=num_processes) as pool:
             results = pool.map(process_chunk, chunk_args)
 
-    merged = sum((Counter(d) for d in results), Counter())
-    frequency_table = dict(merged)
+    frequency_table = sum((Counter(d) for d in results), Counter())
 
     return frequency_table
 
