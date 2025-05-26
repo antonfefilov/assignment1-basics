@@ -2,7 +2,9 @@ import os
 from typing import BinaryIO
 from multiprocessing import Pool
 from collections import Counter
+import regex as re
 
+PAT = r"""'(?:[sdmt]|ll|ve|re)| ?\p{L}+| ?\p{N}+| ?[^\s\p{L}\p{N}]+|\s+(?!\S)|\s+"""
 
 def find_chunk_boundaries(file: BinaryIO, desired_num_chunks: int, split_special_token: bytes) -> list[int]:
     """
@@ -93,8 +95,8 @@ def process_chunk(args: tuple[int, int, str]) -> dict[tuple[bytes, ...], int]:
                 continue
 
             # Split story into words and count occurrences
-            words = story.split()
-            for word in words:
+            for match in re.finditer(PAT, story):
+                word = match.group()
                 word_bytes = tuple(bytes([b]) for b in word.encode("utf-8"))
                 pre_token_counts[word_bytes] = pre_token_counts.get(word_bytes, 0) + 1
 
