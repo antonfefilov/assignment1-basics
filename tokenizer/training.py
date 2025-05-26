@@ -20,13 +20,14 @@ def train(
     # Build pair2pos and freq_pairs once
     pair2pos = defaultdict(set)
     freq_pairs = Counter()
-    words = list(frequency_table.keys())
 
-    for word_id, word in enumerate(words):
+    for word_id, word in enumerate(list(frequency_table.keys())):
         for i in range(len(word) - 1):
             pair = (word[i], word[i + 1])
             pair2pos[pair].add((word_id, i))
             freq_pairs[pair] += frequency_table[word]
+
+    words = list(list(key) for key in frequency_table.keys())
 
     merges = []
 
@@ -45,7 +46,7 @@ def train(
         best_pairs = [p for p, f in freq_pairs.items() if f == max_freq]
         best_pair = max(best_pairs)
 
-        bpe_merge_inplace(best_pair[0], best_pair[1], words, pair2pos, freq_pairs)
+        bpe_merge_inplace(best_pair[0], best_pair[1], words, pair2pos, freq_pairs, frequency_table)
 
         merges.append(best_pair)
         vocabulary[len(vocabulary)] = bytes(best_pair[0] + best_pair[1])
@@ -60,7 +61,7 @@ def train(
 
 
 # Single merge step function
-def bpe_merge_inplace(a, b, word_list, pair2pos, freq_pairs):
+def bpe_merge_inplace(a, b, word_list, pair2pos, freq_pairs, frequency_table):
     ab = a + b
 
     # Sort positions in reverse order to avoid index shifting when merging tokens.
@@ -71,6 +72,8 @@ def bpe_merge_inplace(a, b, word_list, pair2pos, freq_pairs):
 
     for word_id, pos in positions:
         tokens = word_list[word_id]
+        word_frequency = frequency_table[tuple(tokens)]
+
         # Relevance
         if pos >= len(tokens) - 1 or tokens[pos] != a or tokens[pos + 1] != b:
             continue
@@ -81,26 +84,37 @@ def bpe_merge_inplace(a, b, word_list, pair2pos, freq_pairs):
         # Decrease frequencies and remove old pairs
         if prev_token is not None:
             pair2pos[(prev_token, a)].discard((word_id, pos - 1))
-            freq_pairs[(prev_token, a)] -= 1
+            freq_pairs[(prev_token, a)] -= word_frequency
+
             if freq_pairs[(prev_token, a)] == 0:
                 del freq_pairs[(prev_token, a)]
+
         pair2pos[(a, b)].discard((word_id, pos))
-        freq_pairs[(a, b)] -= 1
+
+        freq_pairs[(a, b)] -= word_frequency
+
         if freq_pairs[(a, b)] == 0:
             del freq_pairs[(a, b)]
+
         if next_token is not None:
             pair2pos[(b, next_token)].discard((word_id, pos + 1))
-            freq_pairs[(b, next_token)] -= 1
+            freq_pairs[(b, next_token)] -= word_frequency
+
             if freq_pairs[(b, next_token)] == 0:
                 del freq_pairs[(b, next_token)]
+
+        del frequency_table[tuple(tokens)]
 
         # Merge
         tokens[pos : pos + 2] = [ab]
 
+        frequency_table[tuple(tokens)] = word_frequency  # Copy value to new key
+
         # Add new pairs
         if prev_token is not None:
             pair2pos[(prev_token, ab)].add((word_id, pos - 1))
-            freq_pairs[(prev_token, ab)] += 1
+            freq_pairs[(prev_token, ab)] += word_frequency
+
         if next_token is not None:
             pair2pos[(ab, next_token)].add((word_id, pos))
-            freq_pairs[(ab, next_token)] += 1
+            freq_pairs[(ab, next_token)] += word_frequency
