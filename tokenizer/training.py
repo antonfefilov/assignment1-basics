@@ -21,14 +21,18 @@ def train(
     pair2pos = defaultdict(set)
     freq_pairs = Counter()
 
-    for word_id, word in enumerate(list(frequency_table.keys())):
+    words = list(list(key) for key in frequency_table.keys())
+
+    for word_id, word in enumerate(words):
         for i in range(len(word) - 1):
             pair = (word[i], word[i + 1])
             pair2pos[pair].add((word_id, i))
-            freq_pairs[pair] += frequency_table[word]
+            freq_pairs[pair] += frequency_table[tuple(word)]
 
-    words = list(list(key) for key in frequency_table.keys())
-
+    print("pair2pos initial", pair2pos)
+    print("freq_pairs initial", freq_pairs)
+    print("words initial", words)
+    input("Press Enter to continue...")
     merges = []
 
     # Calculate the number of merges needed
@@ -39,6 +43,9 @@ def train(
     pbar = tqdm(total=num_merges_needed, desc="Training BPE", unit="merges")
 
     while len(vocabulary) < vocab_size:
+        print("--------------------------------")
+        print("freq_pairs before merge", freq_pairs)
+
         if not freq_pairs:
             break
 
@@ -46,10 +53,18 @@ def train(
         best_pairs = [p for p, f in freq_pairs.items() if f == max_freq]
         best_pair = max(best_pairs)
 
+        print("max_freq", max_freq)
+        print("BEST_PAIRS", best_pairs)
+        print("BEST_PAIR", best_pair)
+        print("pair2pos before merge", pair2pos)
+        print("frequency_table before merge", frequency_table)
+
         bpe_merge_inplace(best_pair[0], best_pair[1], words, pair2pos, freq_pairs, frequency_table)
 
         merges.append(best_pair)
         vocabulary[len(vocabulary)] = bytes(best_pair[0] + best_pair[1])
+
+        print("MERGES", merges)
 
         # Update progress bar
         pbar.update(1)
@@ -64,57 +79,81 @@ def train(
 def bpe_merge_inplace(a, b, word_list, pair2pos, freq_pairs, frequency_table):
     ab = a + b
 
-    # Sort positions in reverse order to avoid index shifting when merging tokens.
-    # When merging tokens at position i, all positions < i remain unchanged,
-    # but positions > i shift left by 1. Processing from right to left ensures
-    # we don't invalidate the positions we haven't processed yet.
-    positions = sorted(pair2pos[(a, b)], reverse=True)
+    print("ab", ab)
 
+    # Get all positions for this pair
+    positions = list(pair2pos[(a, b)])
+    
+    # Group positions by word_id and sort by position in descending order within each word
+    word_positions = defaultdict(list)
     for word_id, pos in positions:
+        word_positions[word_id].append(pos)
+    
+    for word_id in word_positions:
+        word_positions[word_id].sort(reverse=True)
+
+    print("word_positions", dict(word_positions))
+
+    # Process each word separately
+    for word_id, positions_in_word in word_positions.items():
         tokens = word_list[word_id]
-        word_frequency = frequency_table[tuple(tokens)]
+        original_tokens = tuple(tokens)
+        word_frequency = frequency_table[original_tokens]
 
-        # Relevance
-        if pos >= len(tokens) - 1 or tokens[pos] != a or tokens[pos + 1] != b:
-            continue
+        print(f"Processing word_id {word_id}, tokens: {tokens}")
 
-        prev_token = tokens[pos - 1] if pos > 0 else None
-        next_token = tokens[pos + 2] if pos < len(tokens) - 2 else None
+        # Process positions in reverse order within this word
+        for pos in positions_in_word:
+            # Verify the pair still exists at this position
+            if pos >= len(tokens) - 1 or tokens[pos] != a or tokens[pos + 1] != b:
+                print(f"Skipping invalid position {pos} in word {word_id}")
+                continue
 
-        # Decrease frequencies and remove old pairs
-        if prev_token is not None:
-            pair2pos[(prev_token, a)].discard((word_id, pos - 1))
-            freq_pairs[(prev_token, a)] -= word_frequency
+            prev_token = tokens[pos - 1] if pos > 0 else None
+            next_token = tokens[pos + 2] if pos < len(tokens) - 2 else None
 
-            if freq_pairs[(prev_token, a)] == 0:
-                del freq_pairs[(prev_token, a)]
+            print(f"Merging at pos {pos}: prev={prev_token}, current=({a},{b}), next={next_token}")
 
-        pair2pos[(a, b)].discard((word_id, pos))
+            # Remove old pairs from tracking structures
+            if prev_token is not None:
+                pair2pos[(prev_token, a)].discard((word_id, pos - 1))
+                if len(pair2pos[(prev_token, a)]) == 0:
+                    del pair2pos[(prev_token, a)]
+                freq_pairs[(prev_token, a)] -= word_frequency
+                if freq_pairs[(prev_token, a)] == 0:
+                    del freq_pairs[(prev_token, a)]
 
-        freq_pairs[(a, b)] -= word_frequency
+            if next_token is not None:
+                pair2pos[(b, next_token)].discard((word_id, pos + 1))
+                if len(pair2pos[(b, next_token)]) == 0:
+                    del pair2pos[(b, next_token)]
+                freq_pairs[(b, next_token)] -= word_frequency
+                if freq_pairs[(b, next_token)] == 0:
+                    del freq_pairs[(b, next_token)]
 
-        if freq_pairs[(a, b)] == 0:
-            del freq_pairs[(a, b)]
+            # Perform the merge
+            tokens[pos:pos + 2] = [ab]
 
-        if next_token is not None:
-            pair2pos[(b, next_token)].discard((word_id, pos + 1))
-            freq_pairs[(b, next_token)] -= word_frequency
+            # Add new pairs
+            if prev_token is not None:
+                pair2pos[(prev_token, ab)].add((word_id, pos - 1))
+                freq_pairs[(prev_token, ab)] += word_frequency
 
-            if freq_pairs[(b, next_token)] == 0:
-                del freq_pairs[(b, next_token)]
+            if next_token is not None:
+                pair2pos[(ab, next_token)].add((word_id, pos))
+                freq_pairs[(ab, next_token)] += word_frequency
 
-        del frequency_table[tuple(tokens)]
+            print(f"After merge: {tokens}")
 
-        # Merge
-        tokens[pos : pos + 2] = [ab]
+        # Update frequency table
+        del frequency_table[original_tokens]
+        frequency_table[tuple(tokens)] = word_frequency
 
-        frequency_table[tuple(tokens)] = word_frequency  # Copy value to new key
+    # Remove the merged pair from tracking
+    pair2pos[(a, b)].clear()
+    if (a, b) in pair2pos:
+        del pair2pos[(a, b)]
+    if (a, b) in freq_pairs:
+        del freq_pairs[(a, b)]
 
-        # Add new pairs
-        if prev_token is not None:
-            pair2pos[(prev_token, ab)].add((word_id, pos - 1))
-            freq_pairs[(prev_token, ab)] += word_frequency
-
-        if next_token is not None:
-            pair2pos[(ab, next_token)].add((word_id, pos))
-            freq_pairs[(ab, next_token)] += word_frequency
+    print("--------------------------------")
