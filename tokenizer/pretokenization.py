@@ -48,7 +48,7 @@ def find_chunk_boundaries(file: BinaryIO, desired_num_chunks: int, split_special
     # Make sure all boundaries are unique, but might be fewer than desired_num_chunks
     return sorted(set(chunk_boundaries))
 
-def pretokenize(file_path: str, num_processes: int) -> dict[tuple[bytes, ...], int]:
+def pretokenize(file_path: str, special_tokens: list[str], num_processes: int) -> dict[tuple[bytes, ...], int]:
     with open(file_path, "rb") as f:
         boundaries = find_chunk_boundaries(f, num_processes, "<|endoftext|>".encode("utf-8"))
 

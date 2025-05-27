@@ -6,22 +6,24 @@ from .pretokenization import pretokenize
 def train(
     *, input_path: str, vocab_size: int = 10000, special_tokens: list[str] = [], num_processes: int = 1
 ) -> tuple[dict[int, bytes], list[tuple[bytes, bytes]]]:
-    vocabulary = {i: bytes([i]) for i in range(256)}
-    vocabulary.update({len(vocabulary): b"<|endoftext|>"})
-    vocabulary.update({len(vocabulary) + i: token.encode("utf-8") for i, token in enumerate(special_tokens)})
+    vocabulary = {}
+    # Add special tokens first
+    vocabulary.update({i: token.encode("utf-8") for i, token in enumerate(special_tokens)})
+    # Add byte tokens
+    vocabulary.update({len(vocabulary) + i: bytes([i]) for i in range(256)})
 
     # Example frequency table: {
     #     (b'n', b'o'): 300,
     #     (b'h', b'e', b'l', b'l', b'o'): 500,  # Example of a longer byte sequence
     #     (b'w', b'o', b'r', b'l', b'd'): 400   # Another example with multiple bytes
     # }
-    frequency_table = pretokenize(input_path, num_processes)
+    frequency_table = pretokenize(input_path, special_tokens, num_processes)
 
     # Build pair2pos and freq_pairs once
     pair2pos = defaultdict(set)
     freq_pairs = Counter()
 
-    words = list(list(key) for key, _ in frequency_table.most_common(vocab_size))
+    words = list(list(key) for key in frequency_table.keys())
 
     for word_id, word in enumerate(words):
         for i in range(len(word) - 1):
@@ -74,9 +76,21 @@ def bpe_merge_inplace(a, b, word_list, pair2pos, freq_pairs, frequency_table):
         original_tokens = tuple(tokens)
         word_frequency = frequency_table[original_tokens]
 
-        # Verify the pair still exists at this position
+        # Verify the pair still exists at this position and fix the position if it doesn't
         if pos >= len(tokens) - 1 or tokens[pos] != a or tokens[pos + 1] != b:
-            continue
+            # Find and update the correct position of the pair
+            prev_pos = pos - 1
+            while prev_pos >= 0:
+                if prev_pos < len(tokens) - 1 and tokens[prev_pos] == a and tokens[prev_pos + 1] == b:
+                    # Update the position in pair2pos for this word_id
+                    pair2pos[(a, b)].discard((word_id, pos))
+                    pair2pos[(a, b)].add((word_id, prev_pos))
+                    pos = prev_pos
+                    break
+                prev_pos = prev_pos - 1
+            if prev_pos < 0:
+                pair2pos[(a, b)].discard((word_id, pos))
+                continue
 
         prev_token = tokens[pos - 1] if pos > 0 else None
         next_token = tokens[pos + 2] if pos < len(tokens) - 2 else None
