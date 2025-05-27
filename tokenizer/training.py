@@ -72,6 +72,10 @@ def bpe_merge_inplace(a, b, word_list, pair2pos, freq_pairs, frequency_table):
 
     # Process each word separately
     for word_id, pos in positions:
+        # corner case when the merge change the same pair in the same word
+        if (word_id, pos) not in pair2pos[(a, b)]:
+            continue
+
         tokens = word_list[word_id]
         original_tokens = tuple(tokens)
         word_frequency = frequency_table[original_tokens]
@@ -79,18 +83,10 @@ def bpe_merge_inplace(a, b, word_list, pair2pos, freq_pairs, frequency_table):
         # Verify the pair still exists at this position and fix the position if it doesn't
         if pos >= len(tokens) - 1 or tokens[pos] != a or tokens[pos + 1] != b:
             # Find and update the correct position of the pair
-            prev_pos = pos - 1
-            while prev_pos >= 0:
-                if prev_pos < len(tokens) - 1 and tokens[prev_pos] == a and tokens[prev_pos + 1] == b:
-                    # Update the position in pair2pos for this word_id
-                    pair2pos[(a, b)].discard((word_id, pos))
-                    pair2pos[(a, b)].add((word_id, prev_pos))
-                    pos = prev_pos
-                    break
-                prev_pos = prev_pos - 1
-            if prev_pos < 0:
-                pair2pos[(a, b)].discard((word_id, pos))
-                continue
+            raise ValueError(
+                f"Pair ({a}, {b}) not found at position {pos} in word number {word_id} with tokens {tokens}."
+            )
+            # continue
 
         prev_token = tokens[pos - 1] if pos > 0 else None
         next_token = tokens[pos + 2] if pos < len(tokens) - 2 else None
@@ -127,6 +123,14 @@ def bpe_merge_inplace(a, b, word_list, pair2pos, freq_pairs, frequency_table):
         # Update frequency table
         del frequency_table[original_tokens]
         frequency_table[tuple(tokens)] = word_frequency
+
+        # Update positions in pair2pos for all tokens in the word
+        if pos == len(tokens) - 1:
+            pair2pos[(a, b)].discard((word_id, pos))
+        else:
+            for i in range(pos, len(tokens) - 1):
+                pair2pos[(tokens[i], tokens[i + 1])].discard((word_id, i + 1))
+                pair2pos[(tokens[i], tokens[i + 1])].add((word_id, i))
 
     # Remove the merged pair from tracking
     pair2pos[(a, b)].clear()
