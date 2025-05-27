@@ -63,7 +63,7 @@ def train(
         bpe_merge_inplace(best_pair[0], best_pair[1], words, pair2pos, freq_pairs, frequency_table)
 
         merges.append(best_pair)
-        vocabulary[len(vocabulary)] = bytes(best_pair[0] + best_pair[1])
+        vocabulary[len(vocabulary)] = best_pair[0] + best_pair[1]
 
         # Update progress bar
         pbar.update(1)
