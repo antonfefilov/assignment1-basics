@@ -86,7 +86,6 @@ def bpe_merge_inplace(a, b, word_list, pair2pos, freq_pairs, frequency_table):
             raise ValueError(
                 f"Pair ({a}, {b}) not found at position {pos} in word number {word_id} with tokens {tokens}."
             )
-            # continue
 
         prev_token = tokens[pos - 1] if pos > 0 else None
         next_token = tokens[pos + 2] if pos < len(tokens) - 2 else None
@@ -125,12 +124,9 @@ def bpe_merge_inplace(a, b, word_list, pair2pos, freq_pairs, frequency_table):
         frequency_table[tuple(tokens)] = word_frequency
 
         # Update positions in pair2pos for all tokens in the word
-        if pos == len(tokens) - 1:
-            pair2pos[(a, b)].discard((word_id, pos))
-        else:
-            for i in range(pos, len(tokens) - 1):
-                pair2pos[(tokens[i], tokens[i + 1])].discard((word_id, i + 1))
-                pair2pos[(tokens[i], tokens[i + 1])].add((word_id, i))
+        for i in range(pos, len(tokens) - 1):
+            pair2pos[(tokens[i], tokens[i + 1])].discard((word_id, i + 1))
+            pair2pos[(tokens[i], tokens[i + 1])].add((word_id, i))
 
     # Remove the merged pair from tracking
     pair2pos[(a, b)].clear()
