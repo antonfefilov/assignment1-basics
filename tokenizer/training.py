@@ -6,6 +6,18 @@ from .pretokenization import pretokenize
 def train(
     *, input_path: str, vocab_size: int = 10000, special_tokens: list[str] = [], num_processes: int = 1
 ) -> tuple[dict[int, bytes], list[tuple[bytes, bytes]]]:
+    """
+    Train a BPE tokenizer on the given input file.
+    
+    Args:
+        input_path: Path to the input training file
+        vocab_size: Target vocabulary size (default: 10000)
+        special_tokens: List of special tokens to include in vocabulary
+        num_processes: Number of processes for parallel pretokenization
+        
+    Returns:
+        Tuple of (vocabulary dict mapping token_id -> bytes, list of merge operations)
+    """
     vocabulary = {}
     # Add special tokens first
     vocabulary.update({i: token.encode("utf-8") for i, token in enumerate(special_tokens)})
@@ -64,6 +76,17 @@ def train(
 
 # Single merge step function
 def bpe_merge_inplace(a, b, word_list, pair2pos, freq_pairs, frequency_table):
+    """
+    Merge all occurrences of the pair (a, b) in the word list in-place.
+    
+    Args:
+        a: First token of the pair to merge
+        b: Second token of the pair to merge
+        word_list: List of words (each word is a list of tokens)
+        pair2pos: Dictionary mapping pairs to sets of (word_id, position) tuples
+        freq_pairs: Counter tracking frequency of each pair
+        frequency_table: Dictionary mapping word tuples to their frequencies
+    """
     ab = a + b
 
     # Get all positions for this pair
@@ -84,7 +107,11 @@ def bpe_merge_inplace(a, b, word_list, pair2pos, freq_pairs, frequency_table):
         if pos >= len(tokens) - 1 or tokens[pos] != a or tokens[pos + 1] != b:
             # Find and update the correct position of the pair
             raise ValueError(
-                f"Pair ({a}, {b}) not found at position {pos} in word number {word_id} with tokens {tokens}."
+                f"Pair ({a}, {b}) not found at position {pos} in word number {word_id}. "
+                f"Word tokens: {tokens}, Word length: {len(tokens)}, "
+                f"Expected tokens at pos {pos}: ({tokens[pos] if pos < len(tokens) else 'OUT_OF_BOUNDS'}, "
+                f"{tokens[pos + 1] if pos + 1 < len(tokens) else 'OUT_OF_BOUNDS'}), "
+                f"Actual pair to merge: ({a}, {b})"
             )
 
         prev_token = tokens[pos - 1] if pos > 0 else None
