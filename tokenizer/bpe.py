@@ -1,5 +1,8 @@
 from collections import Counter, defaultdict
 from tqdm import tqdm
+import json
+import pickle
+from pathlib import Path
 from .pretokenization import pretokenize
 
 
@@ -184,3 +187,103 @@ class BPE:
             del pair2pos[(a, b)]
         if (a, b) in freq_pairs:
             del freq_pairs[(a, b)]
+
+    def save(self, file_path: str):
+        """
+        Save the BPE tokenizer to a file.
+
+        Args:
+            file_path: Path to the file where the tokenizer will be saved
+        """
+        if self._vocabulary is None or self._merges is None:
+            raise ValueError("Tokenizer must be trained before saving")
+
+        data = {"vocabulary": self._vocabulary, "merges": self._merges}
+
+        with open(file_path, "wb") as f:
+            pickle.dump(data, f)
+
+    def load(self, file_path: str):
+        """
+        Load the BPE tokenizer from a file.
+
+        Args:
+            file_path: Path to the file where the tokenizer is saved
+        """
+        with open(file_path, "rb") as f:
+            data = pickle.load(f)
+            self._vocabulary = data["vocabulary"]
+            self._merges = data["merges"]
+
+    def save_vocabulary(self, file_path: str):
+        """
+        Save the vocabulary to a JSON file.
+
+        Args:
+            file_path: Path to the vocabulary file
+        """
+        if self._vocabulary is None:
+            raise ValueError("Vocabulary must be trained before saving")
+
+        # Convert bytes to base64 strings for JSON serialization
+        vocab_serializable = {
+            str(token_id): token.decode("latin-1") if isinstance(token, bytes) else token
+            for token_id, token in self._vocabulary.items()
+        }
+
+        with open(file_path, "w", encoding="utf-8") as f:
+            json.dump(vocab_serializable, f, indent=2, ensure_ascii=False)
+
+    def load_vocabulary(self, file_path: str):
+        """
+        Load the vocabulary from a JSON file.
+
+        Args:
+            file_path: Path to the vocabulary file
+        """
+        with open(file_path, "r", encoding="utf-8") as f:
+            vocab_serializable = json.load(f)
+
+        # Convert back to the expected format
+        self._vocabulary = {
+            int(token_id): token.encode("latin-1") if isinstance(token, str) else token
+            for token_id, token in vocab_serializable.items()
+        }
+
+    def save_merges(self, file_path: str):
+        """
+        Save the merges to a text file in a human-readable format.
+
+        Args:
+            file_path: Path to the merges file
+        """
+        if self._merges is None:
+            raise ValueError("Merges must be trained before saving")
+
+        with open(file_path, "w", encoding="utf-8") as f:
+            for merge_a, merge_b in self._merges:
+                # Convert bytes to escaped string representation
+                a_str = merge_a.decode("latin-1")
+                b_str = merge_b.decode("latin-1")
+                f.write(f"{a_str} {b_str}\n")
+
+    def load_merges(self, file_path: str):
+        """
+        Load the merges from a text file.
+
+        Args:
+            file_path: Path to the merges file
+        """
+        merges = []
+        with open(file_path, "r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if line:
+                    parts = line.split(" ", 1)
+                    if len(parts) == 2:
+                        a_str, b_str = parts
+                        merge_a = a_str.encode("latin-1")
+                        merge_b = b_str.encode("latin-1")
+                        merges.append((merge_a, merge_b))
+
+        self._merges = merges
