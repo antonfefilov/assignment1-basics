@@ -5,7 +5,7 @@ import argparse
 import cProfile
 import pstats
 import sys
-from tokenizer.training import train
+from tokenizer.bpe import BPE
 
 def profile_train(vocab_size: int = 500, input_path: str = "tests/fixtures/tinystories_sample.txt", 
                  num_processes: int = 1, num_stats: int = 30):
@@ -22,15 +22,11 @@ def profile_train(vocab_size: int = 500, input_path: str = "tests/fixtures/tinys
     print(f"Profiling BPE training with vocab_size={vocab_size}, input_path={input_path}")
     
     # Run the training
-    vocab, merges = train(
-        input_path=input_path,
-        vocab_size=vocab_size,
-        special_tokens=special_tokens,
-        num_processes=num_processes
-    )
-    
-    print(f"Completed training: {len(vocab)} vocab tokens, {len(merges)} merges")
-    return vocab, merges
+    bpe = BPE()
+    bpe.train(input_path=input_path, vocab_size=vocab_size, special_tokens=special_tokens, num_processes=num_processes)
+
+    print(f"Completed training: {len(bpe.vocabulary)} vocab tokens, {len(bpe.merges)} merges")
+    return bpe.vocabulary, bpe.merges
 
 def main():
     """Main function with command line argument parsing"""
