@@ -10,6 +10,18 @@ PAT = r"""'(?:[sdmt]|ll|ve|re)| ?\p{L}+| ?\p{N}+| ?[^\s\p{L}\p{N}]+|\s+(?!\S)|\s
 MINI_CHUNK_SIZE = 4096  # Read ahead by 4k bytes at a time
 DEFAULT_SPLIT_TOKEN = "<|endoftext|>"
 
+def split_stories_lazy(text, split_token):
+    pattern = re.escape(split_token)
+    start = 0
+    for match in re.finditer(pattern, text):
+        if match.start() > start:
+            yield text[start : match.start()]
+        start = match.end()
+    # Yield remaining text after last split
+    if start < len(text):
+        yield text[start:]
+
+
 def find_chunk_boundaries(file: BinaryIO, desired_num_chunks: int, split_special_token: bytes) -> list[int]:
     """
     Chunk the file into parts that can be counted independently.
@@ -66,7 +78,9 @@ def pretokenize(file_path: str, special_tokens: list[str], num_processes: int, s
         Dictionary mapping byte tuples to their frequencies
     """
     with open(file_path, "rb") as f:
+        print(f"Opened file {file_path} ...")
         boundaries = find_chunk_boundaries(f, num_processes, split_token.encode("utf-8"))
+        print(f"Found {len(boundaries)} chunk boundaries")
 
         # Create list of (start, end, file_path, split_token, chunk_id) tuples for each chunk
         chunk_args = [
@@ -76,9 +90,12 @@ def pretokenize(file_path: str, special_tokens: list[str], num_processes: int, s
 
         # Process chunks in parallel using a process pool
         with Pool(processes=num_processes) as pool:
+            print(f"Processing {len(chunk_args)} chunks in parallel...")
             results = pool.map(process_chunk, chunk_args)
+            print("Done processing chunks")
 
     frequency_table = sum((Counter(d) for d in results), Counter())
+    print("Calculated frequency table ...")
 
     return frequency_table
 
@@ -100,18 +117,20 @@ def process_chunk(args: tuple[int, int, str, str, int]) -> dict[tuple[bytes, ...
         representing words, and the values are their respective counts.
     """
     start, end, file_path, split_token, chunk_id = args
+    print(f"Processing chunk {chunk_id} ({start}-{end}) of size {(end - start) / 1024 / 1024:.2f} MB ...")
     with open(file_path, "rb") as f:
         f.seek(start)
         chunk = f.read(end - start).decode("utf-8", errors="ignore")
+        print(f"Chunk {chunk_id} ({start}-{end}) of size {(end - start) / 1024 / 1024:.2f} MB loaded ...")
 
         # Initialize empty dictionary to store pre-token counts
         pre_token_counts = {}
 
-        # Split chunk by the specified token and process each story
-        stories = chunk.split(split_token)
-
         # Process each story with progress tracking on separate lines
-        for story in tqdm(stories, desc=f"Chunk {chunk_id} ({start}-{end})", position=chunk_id, leave=True):
+        stories = split_stories_lazy(chunk, split_token)
+        for story in tqdm(
+            stories, desc=f"Chunk {chunk_id} ({start}-{end})", position=chunk_id, leave=True, total=None, unit="stories"
+        ):
             # Skip empty stories
             if not story.strip():
                 continue
