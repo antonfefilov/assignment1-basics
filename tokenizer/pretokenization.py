@@ -1,6 +1,7 @@
 import os
 from typing import BinaryIO
-from multiprocessing import Pool
+from multiprocessing import Pool, RLock
+from functools import partial
 from collections import Counter
 import regex as re
 from tqdm import tqdm
@@ -9,6 +10,11 @@ from tqdm import tqdm
 PAT = r"""'(?:[sdmt]|ll|ve|re)| ?\p{L}+| ?\p{N}+| ?[^\s\p{L}\p{N}]+|\s+(?!\S)|\s+"""
 MINI_CHUNK_SIZE = 4096  # Read ahead by 4k bytes at a time
 DEFAULT_SPLIT_TOKEN = "<|endoftext|>"
+
+def _init_tqdm(lock):
+    """Initialize tqdm with a shared lock for multiprocessing"""
+    tqdm.set_lock(lock)
+
 
 def split_stories_lazy(text, split_token):
     pattern = re.escape(split_token)
@@ -86,8 +92,9 @@ def pretokenize(file_path: str, special_tokens: list[str], num_processes: int, s
             for i, (start, end) in enumerate(zip(boundaries[:-1], boundaries[1:]))
         ]
 
-        # Process chunks in parallel using a process pool
-        with Pool(processes=num_processes) as pool:
+        # Process chunks in parallel using a process pool with shared tqdm lock
+        lock = RLock()
+        with Pool(processes=num_processes, initializer=_init_tqdm, initargs=(lock,)) as pool:
             results = pool.map(process_chunk, chunk_args)
 
     frequency_table = sum((Counter(d) for d in results), Counter())
