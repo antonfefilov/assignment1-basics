@@ -41,7 +41,12 @@ class BPE:
         #     (b'h', b'e', b'l', b'l', b'o'): 500,  # Example of a longer byte sequence
         #     (b'w', b'o', b'r', b'l', b'd'): 400   # Another example with multiple bytes
         # }
+        import time
+
+        start_time = time.time()
         frequency_table = pretokenize(input_path, special_tokens, num_processes)
+        pretokenization_time = time.time() - start_time
+        print(f"Pretokenization completed in {pretokenization_time:.2f} seconds")
 
         # Build pair2pos and freq_pairs once
         pair2pos = defaultdict(set)
@@ -64,6 +69,9 @@ class BPE:
         # Create progress bar
         pbar = tqdm(total=num_merges_needed, desc="Training BPE", unit="merges")
 
+        # Start timing the merge process
+        merge_start_time = time.time()
+
         while len(vocabulary) < vocab_size:
             if not freq_pairs:
                 break
@@ -82,6 +90,10 @@ class BPE:
 
         # Close progress bar
         pbar.close()
+
+        # Calculate and report merge processing time
+        merge_time = time.time() - merge_start_time
+        print(f"Merge processing completed in {merge_time:.2f} seconds")
 
         # Store results in instance variables
         self._vocabulary = vocabulary
