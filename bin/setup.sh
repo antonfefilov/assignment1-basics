@@ -15,7 +15,7 @@ gunzip owt_valid.txt.gz
 cd ..
 tmux new-session -d -s "train"
 tmux send-keys "source .venv/bin/activate" C-m
-tmux send-keys "python train_memory_efficient.py --input data/owt_train.txt --processes 16 --vocab-size 32000" C-m
+tmux send-keys "python train_memory_efficient.py --input data/owt_train.txt --processes 8 --vocab-size 32000" C-m
 tmux attach-session -t "train"
 
 # source .venv/bin/activate
