@@ -78,9 +78,7 @@ def pretokenize(file_path: str, special_tokens: list[str], num_processes: int, s
         Dictionary mapping byte tuples to their frequencies
     """
     with open(file_path, "rb") as f:
-        print(f"Opened file {file_path} ...")
         boundaries = find_chunk_boundaries(f, num_processes, split_token.encode("utf-8"))
-        print(f"Found {len(boundaries)} chunk boundaries")
 
         # Create list of (start, end, file_path, split_token, chunk_id) tuples for each chunk
         chunk_args = [
@@ -90,9 +88,7 @@ def pretokenize(file_path: str, special_tokens: list[str], num_processes: int, s
 
         # Process chunks in parallel using a process pool
         with Pool(processes=num_processes) as pool:
-            print(f"Processing {len(chunk_args)} chunks in parallel...")
             results = pool.map(process_chunk, chunk_args)
-            print("Done processing chunks")
 
     frequency_table = sum((Counter(d) for d in results), Counter())
     print("Calculated frequency table ...")
@@ -117,28 +113,59 @@ def process_chunk(args: tuple[int, int, str, str, int]) -> dict[tuple[bytes, ...
         representing words, and the values are their respective counts.
     """
     start, end, file_path, split_token, chunk_id = args
-    print(f"Processing chunk {chunk_id} ({start}-{end}) of size {(end - start) / 1024 / 1024:.2f} MB ...")
     with open(file_path, "rb") as f:
         f.seek(start)
-        chunk = f.read(end - start).decode("utf-8", errors="ignore")
-        print(f"Chunk {chunk_id} ({start}-{end}) of size {(end - start) / 1024 / 1024:.2f} MB loaded ...")
+        chunk_size = end - start
 
-        # Initialize empty dictionary to store pre-token counts
-        pre_token_counts = {}
+        # Initialize progress bar for the entire chunk processing
+        with tqdm(
+            total=100,
+            desc=f"Processing chunk {chunk_id} ({start}-{end}) {chunk_size / 1024 / 1024:.2f} MB",
+            position=chunk_id,
+            leave=True,
+            unit="%",
+        ) as pbar:
+            # Step 1: Load chunk
+            pbar.set_description(f"Loading chunk {chunk_id} ({chunk_size / 1024 / 1024:.2f} MB)")
+            chunk = f.read(chunk_size)
+            chunk = chunk.decode("utf-8", errors="ignore")
+            pbar.update(20)  # 20% complete after loading
 
-        # Process each story with progress tracking on separate lines
-        stories = split_stories_lazy(chunk, split_token)
-        for story in tqdm(
-            stories, desc=f"Chunk {chunk_id} ({start}-{end})", position=chunk_id, leave=True, total=None, unit="stories"
-        ):
-            # Skip empty stories
-            if not story.strip():
-                continue
+            # Step 2: Split stories
+            pbar.set_description(f"Splitting stories in chunk {chunk_id}")
+            stories = split_stories_lazy(chunk, split_token)
+            pbar.update(20)  # 40% complete after splitting
 
-            # Split story into words and count occurrences
-            for match in re.finditer(PAT, story):
-                word = match.group()
-                word_bytes = tuple(bytes([b]) for b in word.encode("utf-8"))
-                pre_token_counts[word_bytes] = pre_token_counts.get(word_bytes, 0) + 1
+            # Initialize empty dictionary to store pre-token counts
+            pre_token_counts = {}
+
+            # Step 3: Process stories
+            pbar.set_description(f"Processing stories in chunk {chunk_id}")
+            for i, story in enumerate(stories):
+                # Skip empty stories
+                if not story.strip():
+                    continue
+
+                # Split story into words and count occurrences
+                for match in re.finditer(PAT, story):
+                    word = match.group()
+                    word_bytes = tuple(bytes([b]) for b in word.encode("utf-8"))
+                    pre_token_counts[word_bytes] = pre_token_counts.get(word_bytes, 0) + 1
+
+                # Update progress based on stories processed
+                if i % max(1, 100) == 0:  # Update display every 100 stories
+                    # Calculate stories per second
+                    elapsed_time = pbar.format_dict.get("elapsed", 1)
+                    stories_per_sec = i / elapsed_time if elapsed_time > 0 else 0
+                    pbar.set_description(
+                        f"Chunk {chunk_id}: {i} stories processed ({stories_per_sec:.1f} stories/s) ...",
+                        refresh=True,
+                    )
+                    pbar.refresh()
+
+            # Final update
+            pbar.n = 100
+            pbar.set_description(f"Completed chunk {chunk_id} - {len(pre_token_counts)} unique tokens")
+            pbar.refresh()
 
         return pre_token_counts
