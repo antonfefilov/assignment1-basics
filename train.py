@@ -8,6 +8,7 @@ from typing import List, Tuple
 import json
 import pickle
 from pathlib import Path
+import argparse
 
 
 class MemoryMonitor:
@@ -107,8 +108,33 @@ class MemoryMonitor:
 if __name__ == "__main__":
     freeze_support()
 
+    # Parse command line arguments
+    parser = argparse.ArgumentParser(description="Train a BPE tokenizer with memory monitoring")
+    parser.add_argument(
+        "-i",
+        "--input",
+        default="data/TinyStoriesV2-GPT4-train.txt",
+        help="Input training file (default: data/TinyStoriesV2-GPT4-train.txt)",
+    )
+    parser.add_argument("-v", "--vocab-size", type=int, default=10000, help="Target vocabulary size (default: 10000)")
+    parser.add_argument(
+        "-s",
+        "--special-tokens",
+        nargs="*",
+        default=["<|endoftext|>"],
+        help="Special tokens (default: ['<|endoftext|>'])",
+    )
+    parser.add_argument(
+        "-p", "--processes", type=int, default=4, help="Number of processes for parallel processing (default: 4)"
+    )
+    parser.add_argument(
+        "-m", "--memory-interval", type=float, default=0.5, help="Memory monitoring interval in seconds (default: 0.5)"
+    )
+
+    args = parser.parse_args()
+
     # Initialize memory monitor
-    memory_monitor = MemoryMonitor(interval=0.5)
+    memory_monitor = MemoryMonitor(interval=args.memory_interval)
 
     # Print initial memory state
     initial_memory = memory_monitor.get_current_memory()
@@ -124,18 +150,18 @@ if __name__ == "__main__":
 
         bpe = BPE()
         bpe.train(
-            input_path="data/TinyStoriesV2-GPT4-train.txt",
-            vocab_size=10000,
-            special_tokens=["<|endoftext|>"],
-            num_processes=4,
+            input_path=args.input,
+            vocab_size=args.vocab_size,
+            special_tokens=args.special_tokens,
+            num_processes=args.processes,
         )
 
         # Save the trained tokenizer state
         print("Saving tokenizer state...")
 
         # Extract base name from input file for naming output files
-        input_file = Path("data/TinyStoriesV2-GPT4-train.txt")
-        base_name = input_file.stem  # Gets "TinyStoriesV2-GPT4-train"
+        input_file = Path(args.input)
+        base_name = input_file.stem
 
         # Save vocabulary using BPE's built-in method
         vocab_path = f"{base_name}_vocabulary.json"
@@ -164,5 +190,6 @@ if __name__ == "__main__":
         memory_monitor.print_memory_stats()
 
         # Save memory log with timestamp
-        log_filename = f"memory_log_train_{int(time.time())}.csv"
+        input_base = Path(args.input).stem
+        log_filename = f"memory_log_{input_base}_{int(time.time())}.csv"
         memory_monitor.save_memory_log(log_filename)
