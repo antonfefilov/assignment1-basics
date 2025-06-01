@@ -161,7 +161,7 @@ if __name__ == "__main__":
 
         # Extract base name from input file for naming output files
         input_file = Path(args.input)
-        base_name = input_file.stem
+        base_name = "trainings/" + input_file.stem
 
         # Save vocabulary using BPE's built-in method
         vocab_path = f"{base_name}_vocabulary.json"
