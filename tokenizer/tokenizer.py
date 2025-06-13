@@ -104,22 +104,30 @@ class Tokenizer:
 
 
     def _merge(self, token: tuple[bytes, ...]) -> list[int]:
-        # pre_token = list(char.encode('utf-8') for char in token)
         pre_token = [bytes([byte]) for byte in token]
 
-        i = 0
 
-        while i < len(pre_token) - 1:
+        while True:
             if len(pre_token) == 1:
                 break
 
-            pair = tuple([pre_token[i], pre_token[i+1]])
+            out = False
 
-            if pair in self.merges:
-                pre_token[i] = b''.join(pair)
-                del pre_token[i+1]
-            else:
-                i += 1
+            for merge in self.merges:
+                # for pair in zip(pre_token, pre_token[1:]):
+                pairs = list(zip(pre_token, pre_token[1:]))
+
+                for i, pair in enumerate(pairs):
+                    if pair == merge:
+                        pre_token[i] = b''.join(pair)
+                        del pre_token[i+1]
+                        out = False
+                        break
+                    else:
+                        out = True
+
+            if out:
+                break
 
         ids = list(self.reverse_vocab.get(item, self.reverse_vocab.get(self.UNK_UTF8)) for item in pre_token)
 
