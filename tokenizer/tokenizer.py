@@ -6,6 +6,8 @@ from typing import Iterable, Iterator
 
 class Tokenizer:
     PAT = r"""'(?:[sdmt]|ll|ve|re)| ?\p{L}+| ?\p{N}+| ?[^\s\p{L}\p{N}]+|\s+(?!\S)|\s+"""
+    UNK = '[UNK]'
+    UNK_UTF8 = UNK.encode('utf-8')
 
     def __init__(
         self, vocab: dict[int, bytes], merges: list[tuple[bytes, bytes]], special_tokens: list[str] | None = None
@@ -20,10 +22,12 @@ class Tokenizer:
         self.merges = merges
         self.special_tokens = special_tokens if special_tokens is not None else []
 
+        self.special_tokens.append(self.UNK)
+
         # Initialize special tokens if provided
-        if special_tokens:
+        if self.special_tokens:
             max_key = max(vocab.keys())  # Find the maximum key in the vocabulary
-            for token in special_tokens:
+            for token in self.special_tokens:
                 if token not in vocab.values():
                     # Assign a new key for the special token
                     vocab[max_key + 1] = token.encode("utf-8")
@@ -66,14 +70,16 @@ class Tokenizer:
 
         parts = re.split(f"({special_pattern})", text)
 
+        if not text: return []
+
         tokens = []
 
         for part in parts:
             if part in self.special_tokens:
-                tokens.append(self.reverse_vocab.get(part.encode('utf-8'), None))
+                tokens.append(self.reverse_vocab.get(part.encode('utf-8'), self.UNK))
             else:
                 for token in re.findall(self.PAT, part):
-                    tokens.extend(self._merge(token))
+                    tokens.extend(self._merge(token.encode('utf-8')))
 
         return tokens
 
@@ -92,11 +98,14 @@ class Tokenizer:
         :param ids: A list of token IDs to be decoded.
         :return: The decoded text as a string.
         """
-        return ''.join(self.vocab.get(id).decode('utf-8') for id in ids)
+        if not ids: return ''
+
+        return b''.join(self.vocab.get(id) for id in ids).decode('utf-8')
 
 
-    def _merge(self, token: tuple[bytes, bytes]) -> list[int]:
-        pre_token = list(char.encode('utf-8') for char in token)
+    def _merge(self, token: tuple[bytes, ...]) -> list[int]:
+        # pre_token = list(char.encode('utf-8') for char in token)
+        pre_token = [bytes([byte]) for byte in token]
 
         i = 0
 
@@ -112,6 +121,6 @@ class Tokenizer:
             else:
                 i += 1
 
-        ids = list(self.reverse_vocab.get(item) for item in pre_token)
+        ids = list(self.reverse_vocab.get(item, self.reverse_vocab.get(self.UNK_UTF8)) for item in pre_token)
 
         return ids
