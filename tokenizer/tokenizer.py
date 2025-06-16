@@ -24,9 +24,10 @@ class Tokenizer:
         if self.special_tokens:
             max_key = max(vocab.keys())  # Find the maximum key in the vocabulary
             for token in self.special_tokens:
-                if token not in vocab.values():
+                token_utf8 = token.encode("utf-8")
+                if token_utf8 not in vocab.values():
                     # Assign a new key for the special token
-                    vocab[max_key + 1] = token.encode("utf-8")
+                    vocab[max_key + 1] = token_utf8
                     max_key += 1
 
         self.reverse_vocab = {v: k for k, v in vocab.items()}  # Reverse mapping for encoding
@@ -61,8 +62,9 @@ class Tokenizer:
         :param text: The input text to be encoded.
         :return: A list of token IDs corresponding to the input text.
         """
+        special_tokens_sorted = sorted(self.special_tokens, key=len, reverse=True)
         # Create a regex pattern that matches any of the special tokens
-        special_pattern = '|'.join(map(re.escape, self.special_tokens))
+        special_pattern = '|'.join(map(re.escape, special_tokens_sorted))
 
         parts = re.split(f"({special_pattern})", text)
 
@@ -71,6 +73,8 @@ class Tokenizer:
         tokens = []
 
         for part in parts:
+            if not part:
+                continue  # skip empty splits
             if part in self.special_tokens:
                 tokens.append(self.reverse_vocab.get(part.encode('utf-8')))
             else:
