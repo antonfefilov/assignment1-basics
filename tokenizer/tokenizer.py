@@ -62,13 +62,16 @@ class Tokenizer:
         :param text: The input text to be encoded.
         :return: A list of token IDs corresponding to the input text.
         """
-        special_tokens_sorted = sorted(self.special_tokens, key=len, reverse=True)
-        # Create a regex pattern that matches any of the special tokens
-        special_pattern = '|'.join(map(re.escape, special_tokens_sorted))
-
-        parts = re.split(f"({special_pattern})", text)
-
         if not text: return []
+
+        if self.special_tokens:
+            special_tokens_sorted = sorted(self.special_tokens, key=len, reverse=True)
+            # Create a regex pattern that matches any of the special tokens
+            special_pattern = '|'.join(map(re.escape, special_tokens_sorted))
+
+            parts = re.split(f"({special_pattern})", text)
+        else:
+            parts = [text]
 
         tokens = []
 
