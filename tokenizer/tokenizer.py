@@ -6,8 +6,6 @@ from typing import Iterable, Iterator
 
 class Tokenizer:
     PAT = r"""'(?:[sdmt]|ll|ve|re)| ?\p{L}+| ?\p{N}+| ?[^\s\p{L}\p{N}]+|\s+(?!\S)|\s+"""
-    UNK = '[UNK]'
-    UNK_UTF8 = UNK.encode('utf-8')
 
     def __init__(
         self, vocab: dict[int, bytes], merges: list[tuple[bytes, bytes]], special_tokens: list[str] | None = None
@@ -21,8 +19,6 @@ class Tokenizer:
         self.vocab = vocab
         self.merges = merges
         self.special_tokens = special_tokens if special_tokens is not None else []
-
-        self.special_tokens.append(self.UNK)
 
         # Initialize special tokens if provided
         if self.special_tokens:
@@ -76,7 +72,7 @@ class Tokenizer:
 
         for part in parts:
             if part in self.special_tokens:
-                tokens.append(self.reverse_vocab.get(part.encode('utf-8'), self.UNK))
+                tokens.append(self.reverse_vocab.get(part.encode('utf-8')))
             else:
                 for token in re.findall(self.PAT, part):
                     tokens.extend(self._merge(token.encode('utf-8')))
@@ -100,7 +96,7 @@ class Tokenizer:
         """
         if not ids: return ''
 
-        return b''.join(self.vocab.get(id) for id in ids).decode('utf-8')
+        return b''.join(self.vocab.get(id) for id in ids).decode('utf-8', errors='replace')
 
 
     def _merge(self, token: tuple[bytes, ...]) -> list[int]:
@@ -129,6 +125,6 @@ class Tokenizer:
             if out:
                 break
 
-        ids = list(self.reverse_vocab.get(item, self.reverse_vocab.get(self.UNK_UTF8)) for item in pre_token)
+        ids = list(self.reverse_vocab.get(item) for item in pre_token)
 
         return ids
