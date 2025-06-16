@@ -115,19 +115,24 @@ class Tokenizer:
                 break
 
             out = False
+            merge_out = False
+
+            pairs = list(zip(pre_token, pre_token[1:]))
 
             for merge in self.merges:
                 # for pair in zip(pre_token, pre_token[1:]):
-                pairs = list(zip(pre_token, pre_token[1:]))
-
                 for i, pair in enumerate(pairs):
                     if pair == merge:
                         pre_token[i] = b''.join(pair)
                         del pre_token[i+1]
                         out = False
+                        merge_out = True
                         break
                     else:
                         out = True
+
+                if merge_out:
+                    break
 
             if out:
                 break
