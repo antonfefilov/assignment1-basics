@@ -48,7 +48,7 @@ Core compute - RunPod's cpu5c-8-16 instance:
 vCPUs: 8
 RAM: 16 GiB DDR5
 HD: 32Gb NVMe
-Processor: AMD EPYC 4564P 16-Core Processor 
+Processor: AMD EPYC 4564P 16-Core Processor
 
 (a) Train a byte-level BPE tokenizer on the TinyStories dataset, using a maximum vocabulary size
 of 10,000. Make sure to add the TinyStories <|endoftext|> special token to the vocabulary.
@@ -64,7 +64,7 @@ Q: How many hours and memory did training take?.
 A: Approx 1 minute, around 1,3Gb. Data corpus is around 2,7Gb.
 
 Q: What is the longest token in the vocabulary?
-A: there are 3, " responsibility", " disappointment", " accomplishment" 
+A: there are 3, " responsibility", " disappointment", " accomplishment"
 
 (b) Profile your code. What part of the tokenizer training process takes the most time?
 
@@ -77,7 +77,7 @@ Core compute - RunPod's cpu5c-8-16 instance:
 vCPUs: 8
 RAM: 16 GiB DDR5
 HD: 32Gb NVMe
-Processor: AMD EPYC 4564P 16-Core Processor 
+Processor: AMD EPYC 4564P 16-Core Processor
 
 (a) Train a byte-level BPE tokenizer on the OpenWebText dataset, using a maximum vocabulary
 size of 32,000. Serialize the resulting vocabulary and merges to disk for further inspection. What
@@ -94,4 +94,39 @@ Q: What is the longest token in the vocabulary?
 A: there are 2, " disproportionately" and " telecommunications"
 
 Q: Compare and contrast the tokenizer that you get training on TinyStories versus OpenWebText.
-A: The main difference is that in OWT tokenizer the most time was spend on merge steps, it's clear that the relationship between the corpus size and training time is not linear. 
+A: The main difference is that in OWT tokenizer the most time was spend on merge steps, it's clear that the relationship between the corpus size and training time is not linear.
+
+# Problem (tokenizer_experiments): Experiments with tokenizer_experiments
+
+(a) Sample 10 documents from TinyStories and OpenWebText. Using your previously-trained TinyS-
+tories and OpenWebText tokenizers (10K and 32K vocabulary size, respectively), encode these
+sampled documents into integer IDs. What is each tokenizer’s compression ratio (bytes/token)?
+Deliverable: A one-to-two sentence response.
+(b) What happens if you tokenize your OpenWebText sample with the TinyStories tokenizer? Com-
+pare the compression ratio and/or qualitatively describe what happens.
+Deliverable: A one-to-two sentence response.
+(c) Estimate the throughput of your tokenizer (e.g., in bytes/second). How long would it take to
+tokenize the Pile dataset (825GB of text)?
+Deliverable: A one-to-two sentence response.
+(d) Using your TinyStories and OpenWebText tokenizers, encode the respective training and devel-
+opment datasets into a sequence of integer token IDs. We’ll use this later to train our language
+model. We recommend serializing the token IDs as a NumPy array of datatype uint16. Why is
+uint16 an appropriate choice?
+
+Q: What is each tokenizer’s compression ratio (bytes/token)?
+A: TinyStories around 3.9-4.1 and OWT around 4.3-4.4
+
+Q: What happens if you tokenize your OpenWebText sample with the TinyStories tokenizer? Com-
+pare the compression ratio and/or qualitatively describe what happens.
+A: Compression ratio become worse, around 3.1 - 3.2. In TinyStories, the top ~10k merges cover
+almost everything. In OWT, the frequency tail is much fatter: lots of medium-rare substrings.
+Since the TinyStories tokenizer wasn’t optimized for that distribution, it fails to capture them efficiently.
+
+Q: Estimate the throughput of your tokenizer (e.g., in bytes/second). How long would it take to
+tokenize the Pile dataset (825GB of text)?
+A: The OWT tokenizer output is around 2728 bytes/second, with that speed it will take around 10 years to encode
+the Pile dataset. The TinyStories tokenizer speed is around 17000 bytes/second it will take approx 1,65 year.
+
+Q: Why is uint16 an appropriate choice?
+A: uint16 can represent values from 0–65,535. Both TinyStories (≈32k vocab) and OpenWebText vocabularies (≈50k vocab)
+fit comfortably inside this range.
